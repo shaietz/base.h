@@ -1,0 +1,238 @@
+
+
+#ifndef BASE_H
+#define BASE_H
+
+#include <stdarg.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#define internal      static
+#define global        static
+#define local_persist static
+
+typedef uint8_t   u8;
+typedef uint16_t  u16;
+typedef uint32_t  u32;
+typedef uint64_t  u64;
+typedef int8_t    i8;
+typedef int16_t   i16;
+typedef int32_t   i32;
+typedef int64_t   i64;
+typedef int32_t   b32;
+typedef float     f32;
+typedef double    f64;
+typedef ptrdiff_t isize;
+typedef size_t    usize;
+typedef uintptr_t uptr;
+typedef char      byte;
+
+#define sizeof(x)    (isize)sizeof(x)
+#define alignof(x)   (isize)_Alignof(x)
+#define countof(a)   (sizeof(a) / sizeof(*(a)))
+#define lengthof(s)  (countof(s) - 1)
+
+#define KB(n) ((isize)(n) << 10);
+#define MB(n) ((isize)(n) << 20);
+
+#if defined(_MSC_VER)
+#  define ASSERT(c) do { if (!(c)) __debugbreak(); } while (0)
+#else
+#  define ASSERT(c) do { if (!(c)) __builtin_trap(); } while (0)
+#endif
+
+
+internal void *mem_copy(void *dst, void *src, isize n) {
+    if (n) memcpy(dst, src, (usize)n);
+    return dst;
+}
+
+internal void *mem_set(void *dst, u8 byte, isize n) {
+    if (n) memset(dst, byte, (usize)n);
+    return dst;
+}
+
+internal b32 mem_eq(void *a, void *b, isize n) {
+    return !n || !memcmp(a, b, (usize)n);
+}
+
+
+typedef struct Arena Arena;
+struct Arena {
+    u8 *beg;
+    u8 *end;
+};
+
+internal void arena_oom(void) {
+    fputs("out of memory\n", stderr);
+    abort();
+}
+
+internal void *arena_alloc(Arena *arena, isize size, isize align, isize count, b32 zero) {
+    isize pad = (isize)(-(uptr)arena->beg & (uptr)(align - 1));
+    isize available = arena->end - arena->beg - pad;
+    if (available < 0 || count > available / size) {
+        arena_oom();
+    }
+    u8 *result = arena->beg + pad;
+    arena->beg += pad + count * size;
+    if (zero) {
+        mem_set(result, 0, count * size);
+    }
+    return result;
+}
+
+#define new(...)            newx(__VA_ARGS__,new4,new3,new2)(__VA_ARGS__)
+#define newx(a,b,c,d,e,...) e
+#define new2(a, t)          (t *)arena_alloc(a, sizeof(t), alignof(t), 1, 0)
+#define new3(a, t, n)       (t *)arena_alloc(a, sizeof(t), alignof(t), n, 0)
+#define new4(a, t, n, f)    (t *)arena_alloc(a, sizeof(t), alignof(t), n, f)
+
+internal Arena arena_make(isize cap) {
+    Arena arena = {0};
+    arena.beg = (u8 *)malloc((usize)cap);
+    if (!arena.beg) {
+        arena_oom();
+    }
+    arena.end = arena.beg + cap;
+    return arena;
+}
+
+internal Arena arena_sub(Arena *parent, isize cap) {
+    Arena arena = {0};
+    arena.beg = new(parent, u8, cap, 1);
+    arena.end = arena.beg + cap;
+    return arena;
+}
+
+typedef struct Str8 Str8;
+struct Str8 {
+    u8   *buf;
+    isize len;
+};
+
+#define Str8(s)   ((Str8){(u8 *)(s), lengthof(s)})
+#define STR8_FMT  "%.*s"
+#define Str8_varg (int)(s).len, (char *)(s).data // TODO: what is this for?
+
+internal Str8 str8_cstr(char *cstr) {
+    Str8 result = {(u8 *)cstr, cstr ? lengthof(cstr) : 0};
+    return result;
+}
+
+internal b32 str8_eq(Str8 a, Str8 b) {
+    return a.len == b.len && mem_eq(a.buf, b.buf, a.len);
+}
+
+internal Str8 str8_slice(Str8 s, isize beg, isize end) {
+    ASSERT(0 <= beg && beg <= end & end <= s.len);
+    s.buf += beg;
+    s.len   = end - beg;
+    return s;
+}
+
+internal Str8 str8_trim(Str8 s) {
+    while (s.len && (s.buf[0] == ' ' || s.buf[0] >= '\t' && s.buf[0] <= '\r')) {
+        s.buf++;
+        s.len--;
+    }
+    while (s.len && (s.buf[s.len - 1] == ' ' || s.buf[s.len - 1] >= '\t' && s.buf[s.len - 1] <= '\r')) {
+        s.len--;
+    }
+    return s;
+}
+
+typedef struct Str8Cut Str8Cut;
+struct Str8Cut {
+    Str8 head;
+    Str8 tail;
+    b32  ok;
+};
+
+internal Str8Cut str8_cut(Str8 s, u8 c) {
+    Str8Cut result = {0};
+    for (isize i = 0; i < s.len; i++) {
+        if (s.buf[i] == c) {
+            result.head = str8_slice(s, 0, i);
+            result.tail = str8_slice(s, i + 1, s.len);
+            result.ok   = 1;
+            return result;
+        }
+    }
+    result.head = s;
+    return result;
+}
+
+internal Str8 str8_copy(Arena *a, Str8 s) {
+    Str8 result = {0};
+    if (s.len) {
+        result.buf = new(a, u8, s.len);
+        result.len = s.len;
+        mem_copy(result.buf, s.buf, s.len);
+    }
+    return result;
+}
+
+internal char *str8_to_cstring(Arena *a, Str8 s) {
+    char *result = new(a, char, s.len + 1);
+    result[s.len] = '\0';
+    return result;
+}
+
+internal Str8 str8_concat(Arena *a, Str8 head, Str8 tail) {
+    if (!head.len) {
+        return str8_copy(a, tail);
+    }
+    if (head.buf + head.len != a->beg) {
+        head = str8_copy(a, head);
+    }
+    head.len += str8_copy(a, tail).len;
+    return head;
+}
+
+internal Str8 str8_fmt(Arena *a, char *fmt, ...) {
+    isize available = a->end - a->beg;
+    va_list args;
+    va_start(args, fmt);
+    int len = vsnprintf((char *)a->beg, (usize)available, fmt, args);
+    va_end(args);
+    if (len < 0 || len >= available) {
+        arena_oom();
+    }
+    Str8 result = {a->beg, len};
+    a->beg += len;
+    return result;
+}
+
+#define Array(T) struct { T *data; isize len; isize cap; }
+
+internal void array_grow_(void *arr, isize item_size, Arena *arena) {
+    struct { u8 *data; isize len; isize cap; } a;
+    mem_copy(&a, arr, sizeof(a));
+
+    isize align = alignof(max_align_t);
+    if (!a.data) {
+        a.cap = 8;
+        a.data = (u8 *)arena_alloc(arena, item_size, align, a.cap, 1);
+    } else if (arena->beg == a.data + item_size * a.cap) {
+        arena_alloc(arena, item_size, 1, a.cap, 1);
+    } else {
+        u8 *data = (u8 *)arena_alloc(arena, 2 * item_size, align, a.cap, 1);
+        mem_copy(data, a.data, item_size * a.len);
+        a.data = data;
+        a.cap *= 2;
+    }
+    mem_copy(arr, &a, sizeof(a));
+}
+
+#define array_push(arena, arr)                               \
+    ((arr)->len >= (arr)->cap                                \
+        ? array_grow_((arr), sizeof(*(arr)->data), (arena)), \
+            (arr)->data + (arr)->len++                       \
+        : (arr)->data + (arr)->len++)
+
+
+#endif // BASE_H
