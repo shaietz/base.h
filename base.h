@@ -1,5 +1,3 @@
-
-
 #ifndef BASE_H
 #define BASE_H
 
@@ -59,7 +57,9 @@ internal b32 mem_eq(void *a, void *b, isize n) {
     return !n || !memcmp(a, b, (usize)n);
 }
 
-
+// ===========================================================================
+// Arenas
+// ===========================================================================
 typedef struct Arena Arena;
 struct Arena {
     u8 *beg;
@@ -108,6 +108,10 @@ internal Arena arena_sub(Arena *parent, isize cap) {
     return arena;
 }
 
+
+// ===========================================================================
+// Strings
+// ===========================================================================
 typedef struct Str8 Str8;
 struct Str8 {
     u8   *buf;
@@ -207,6 +211,18 @@ internal Str8 str8_fmt(Arena *a, char *fmt, ...) {
     return result;
 }
 
+internal u64 str8_hash(Str8 s) {
+    u64 h = 0x100;
+    for (isize i = 0; i < s.len; i++) {
+        h ^= s.buf[i];
+        h *= 1111111111111111111u;
+    }
+    return h;
+}
+
+// ===========================================================================
+// Dynamic arrays: https://nullprogram.com/blog/2023/10/05/
+// ===========================================================================
 #define Array(T) struct { T *data; isize len; isize cap; }
 
 internal void array_grow_(void *arr, isize item_size, Arena *arena) {
@@ -234,5 +250,34 @@ internal void array_grow_(void *arr, isize item_size, Arena *arena) {
             (arr)->data + (arr)->len++                       \
         : (arr)->data + (arr)->len++)
 
+
+
+// ===========================================================================
+// Hash maps: https://nullprogram.com/blog/2023/09/30/
+// write one per key/value type using this pattern (a 4-ary hash trie)
+// ===========================================================================
+//
+//     typedef struct NameMap NameMap;
+//     struct NameMap {
+//         NameMap *child[4];
+//         Str8     key;
+//         i32      value;
+//     };
+
+//     internal i32 *namemap_upsert(NameMap **m, Str8 key, Arena *a) {
+//         for (u64 h = str8_hash(key); *m; h <<= 2) {
+//             if (str8_eq(key, (*m)->key)) return &(*m)->value;
+//             m = &(*m)->child[h >> 62];
+//         }
+//         if (!a) return 0;
+//         *m = new(a, NameMap);
+//         (*m)->key = key;
+//         return &(*m)->value;
+//     }
+//
+//     NameMap *map = 0;                                  // empty map
+//     *namemap_upsert(&map, key, &arena) += 1;           // insert or update
+//     i32 *v = namemap_upsert(&map, key, 0);             // lookup only
+//
 
 #endif // BASE_H
