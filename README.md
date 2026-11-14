@@ -1,4 +1,5 @@
 # base.h
+![CI](https://github.com/shaietz/base.h/actions/workflows/ci.yml/badge.svg)
 
 My personal single-file base layer for C11: arena allocation, length-based strings, growable arrays, and a pattern for hash maps.
 
