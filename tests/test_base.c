@@ -155,14 +155,14 @@ internal void test_arena_out_of_memory(Arena scratch) {
 
 internal void test_str8_basics(Arena scratch) {
     (void)scratch;
-    Str8 s = Str8("hello");
+    Str8 s = S8("hello");
     CHECK(s.len == 5);
     CHECK(str8_cstr("hello").len == 5);
     CHECK(str8_eq(s, str8_cstr("hello")));
-    CHECK(!str8_eq(s, Str8("hell0")));
-    CHECK(!str8_eq(s, Str8("not hello")));
+    CHECK(!str8_eq(s, S8("hell0")));
+    CHECK(!str8_eq(s, S8("not hello")));
 
-    Str8 empty = Str8("");
+    Str8 empty = S8("");
     Str8 zero = {0};
     CHECK(empty.len == 0);
     CHECK(str8_eq(empty, zero));
@@ -171,9 +171,9 @@ internal void test_str8_basics(Arena scratch) {
 
 internal void test_str8_slice(Arena scratch) {
     (void)scratch;
-    Str8 s = Str8("hello world");
-    CHECK(str8_eq(str8_slice(s, 0, 5), Str8("hello")));
-    CHECK(str8_eq(str8_slice(s, 6, 11), Str8("world")));
+    Str8 s = S8("hello world");
+    CHECK(str8_eq(str8_slice(s, 0, 5), S8("hello")));
+    CHECK(str8_eq(str8_slice(s, 6, 11), S8("world")));
     CHECK(str8_slice(s, 3, 3).len == 0);
     CHECK(str8_eq(str8_slice(s, 0, s.len), s));
     CHECK(str8_slice(s, 6, 11).buf == s.buf + 6);
@@ -181,89 +181,89 @@ internal void test_str8_slice(Arena scratch) {
 
 internal void test_str8_trim(Arena scratch) {
     (void)scratch;
-    CHECK(str8_eq(str8_trim(Str8("  hi  ")), Str8("hi")));
-    CHECK(str8_eq(str8_trim(Str8("\t\r\n hi\n")), Str8("hi")));
-    CHECK(str8_eq(str8_trim(Str8("a b")), Str8("a b")));
-    CHECK(str8_trim(Str8("   ")).len == 0);
-    CHECK(str8_trim(Str8("")).len == 0);
+    CHECK(str8_eq(str8_trim(S8("  hi  ")), S8("hi")));
+    CHECK(str8_eq(str8_trim(S8("\t\r\n hi\n")), S8("hi")));
+    CHECK(str8_eq(str8_trim(S8("a b")), S8("a b")));
+    CHECK(str8_trim(S8("   ")).len == 0);
+    CHECK(str8_trim(S8("")).len == 0);
 }
 
 internal void test_str8_cut(Arena scratch) {
     (void)scratch;
-    Str8Cut c = str8_cut(Str8("key=value"), '=');
+    Str8Cut c = str8_cut(S8("key=value"), '=');
     CHECK(c.ok);
-    CHECK(str8_eq(c.head, Str8("key")));
-    CHECK(str8_eq(c.tail, Str8("value")));
+    CHECK(str8_eq(c.head, S8("key")));
+    CHECK(str8_eq(c.tail, S8("value")));
 
-    c = str8_cut(Str8("novalue"), '=');
+    c = str8_cut(S8("novalue"), '=');
     CHECK(!c.ok);
-    CHECK(str8_eq(c.head, Str8("novalue")));
+    CHECK(str8_eq(c.head, S8("novalue")));
     CHECK(c.tail.len == 0);
 
-    c = str8_cut(Str8("trailing="), '=');
+    c = str8_cut(S8("trailing="), '=');
     CHECK(c.ok && c.tail.len == 0);
 
-    c = str8_cut(Str8("=leading"), '=');
+    c = str8_cut(S8("=leading"), '=');
     CHECK(c.ok && c.head.len == 0);
 
     Str8  parts[8];
     isize count = 0;
-    for (Str8Cut it = {.tail = Str8("a,b,,c")}; it.tail.len;) {
+    for (Str8Cut it = {.tail = S8("a,b,,c")}; it.tail.len;) {
         it = str8_cut(it.tail, ',');
         parts[count++] = it.head;
     }
     CHECK(count == 4);
-    CHECK(str8_eq(parts[0], Str8("a")));
+    CHECK(str8_eq(parts[0], S8("a")));
     CHECK(parts[2].len == 0);
-    CHECK(str8_eq(parts[3], Str8("c")));
+    CHECK(str8_eq(parts[3], S8("c")));
 }
 
 internal void test_str8_hash(Arena scratch) {
-    Str8 a = Str8("hello");
+    Str8 a = S8("hello");
     Str8 b = str8_copy(&scratch, a);
     CHECK(str8_hash(a) == str8_hash(b));
-    CHECK(str8_hash(Str8("ab")) != str8_hash(Str8("ba")));
-    CHECK(str8_hash(Str8("a")) != str8_hash(Str8("")));
+    CHECK(str8_hash(S8("ab")) != str8_hash(S8("ba")));
+    CHECK(str8_hash(S8("a")) != str8_hash(S8("")));
 }
 
 internal void test_str8_copy(Arena scratch) {
-    Str8 s = Str8("copy me");
+    Str8 s = S8("copy me");
     Str8 c = str8_copy(&scratch, s);
     CHECK(str8_eq(s, c));
     CHECK(c.buf != s.buf);
 
-    Str8 e = str8_copy(&scratch, Str8(""));
+    Str8 e = str8_copy(&scratch, S8(""));
     CHECK(e.buf == 0 && e.len == 0);
 
-    char *z = str8_to_cstring(&scratch, Str8("abc"));
+    char *z = str8_to_cstring(&scratch, S8("abc"));
     CHECK(strcmp(z, "abc") == 0);
     z = str8_to_cstring(&scratch, (Str8){0});
     CHECK(z[0] == 0);
 }
 
 internal void test_str8_concat(Arena scratch) {
-    Str8 s = str8_concat(&scratch, (Str8){0}, Str8("ab"));
-    CHECK(str8_eq(s, Str8("ab")));
+    Str8 s = str8_concat(&scratch, (Str8){0}, S8("ab"));
+    CHECK(str8_eq(s, S8("ab")));
 
     u8 *buf = s.buf;
-    s = str8_concat(&scratch, s, Str8("cd"));
-    CHECK(str8_eq(s, Str8("abcd")));
+    s = str8_concat(&scratch, s, S8("cd"));
+    CHECK(str8_eq(s, S8("abcd")));
     CHECK(s.buf == buf);
 
     new(&scratch, u8);
-    s = str8_concat(&scratch, s, Str8("ef"));
-    CHECK(str8_eq(s, Str8("abcdef")));
+    s = str8_concat(&scratch, s, S8("ef"));
+    CHECK(str8_eq(s, S8("abcdef")));
     CHECK(s.buf != buf);
 
-    s = str8_concat(&scratch, Str8("x"), Str8("y"));
-    CHECK(str8_eq(s, Str8("xy")));
+    s = str8_concat(&scratch, S8("x"), S8("y"));
+    CHECK(str8_eq(s, S8("xy")));
 
     s = str8_concat(&scratch, s, (Str8){0});
-    CHECK(str8_eq(s, Str8("xy")));
+    CHECK(str8_eq(s, S8("xy")));
 
     Str8 built = {0};
     for (i32 i = 0; i < 100; i++) {
-        built = str8_concat(&scratch, built, Str8("ab"));
+        built = str8_concat(&scratch, built, S8("ab"));
     }
     CHECK(built.len == 200);
     CHECK(built.buf[0] == 'a' && built.buf[199] == 'b');
@@ -273,11 +273,11 @@ internal void fmt_hello(Arena *a) { str8_fmt(a, "%s", "hello"); }
 
 internal void test_str8_fmt(Arena scratch) {
     Str8 s = str8_fmt(&scratch, "%d-%s", 42, "x");
-    CHECK(str8_eq(s, Str8("42-x")));
+    CHECK(str8_eq(s, S8("42-x")));
 
-    Str8 name = Str8("bob");
+    Str8 name = S8("bob");
     s = str8_fmt(&scratch, "hi " STR8_FMT "!", str8_varg(name));
-    CHECK(str8_eq(s, Str8("hi bob!")));
+    CHECK(str8_eq(s, S8("hi bob!")));
 
     u8 *next = new(&scratch, u8);
     CHECK(next == s.buf + s.len);
@@ -419,21 +419,21 @@ internal i32 *testmap_upsert(TestMap **m, Str8 key, Arena *a) {
 
 internal void test_map_basics(Arena scratch) {
     TestMap *map = 0;
-    CHECK(!testmap_upsert(&map, Str8("a"), 0));
+    CHECK(!testmap_upsert(&map, S8("a"), 0));
     CHECK(map == 0);
 
-    i32 *a = testmap_upsert(&map, Str8("a"), &scratch);
+    i32 *a = testmap_upsert(&map, S8("a"), &scratch);
     CHECK(a && *a == 0);
     *a = 10;
 
-    CHECK(testmap_upsert(&map, Str8("a"), &scratch) == a);
-    CHECK(*testmap_upsert(&map, Str8("a"), 0) == 10);
+    CHECK(testmap_upsert(&map, S8("a"), &scratch) == a);
+    CHECK(*testmap_upsert(&map, S8("a"), 0) == 10);
 
-    Str8 a2 = str8_copy(&scratch, Str8("a"));
+    Str8 a2 = str8_copy(&scratch, S8("a"));
     CHECK(testmap_upsert(&map, a2, 0) == a);
 
-    CHECK(!testmap_upsert(&map, Str8("b"), 0));
-    CHECK(!testmap_upsert(&map, Str8(""), 0));
+    CHECK(!testmap_upsert(&map, S8("b"), 0));
+    CHECK(!testmap_upsert(&map, S8(""), 0));
 }
 
 internal void test_map_many(Arena scratch) {
@@ -451,7 +451,7 @@ internal void test_map_many(Arena scratch) {
         all_ok &= v && *v == i;
     }
     CHECK(all_ok);
-    CHECK(!testmap_upsert(&map, Str8("key-1"), 0));
+    CHECK(!testmap_upsert(&map, S8("key-1"), 0));
 }
 
 typedef struct Test Test;

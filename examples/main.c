@@ -14,7 +14,7 @@ internal Str8Array split(Arena *a, Str8 s, u8 sep) {
 int main(void) {
     Arena arena = arena_make(MB(64));
 
-    Str8Array fruits = split(&arena, Str8("apple, banana ,cherry"), ',');
+    Str8Array fruits = split(&arena, S8("apple, banana ,cherry"), ',');
     for (isize i = 0; i < fruits.len; i++) {
         printf("%.*s\n", str8_varg(fruits.data[i]));
     }

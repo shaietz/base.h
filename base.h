@@ -27,7 +27,7 @@
 //    int main(void) {
 //        Arena arena = arena_make(MB(64));
 //
-//        Str8Array fruits = split(&arena, Str8("apple, banana ,cherry"), ',');
+//        Str8Array fruits = split(&arena, S8("apple, banana ,cherry"), ',');
 //        for (isize i = 0; i < fruits.len; i++) {
 //            printf("%.*s\n", str8_varg(fruits.data[i]));
 //        }
@@ -74,7 +74,7 @@
 //   A pointer and a length. Not null-terminated, and does not own its memory:
 //   slicing never copies. Null-terminate only at libc/OS boundaries.
 //
-//   Str8("literal")          from a string literal (literals only!)
+//   S8("literal")          from a string literal (literals only!)
 //   str8_cstr(cstr)          from a null-terminated C string
 //   str8_eq(a, b)            byte-wise equality
 //   str8_slice(s, beg, end)  bytes [beg, end) as a view into s
@@ -114,7 +114,7 @@
 // NOTES AND GOTCHAS
 // ============================================================================
 //
-//   - Str8() only works on literals and arrays. On a pointer, lengthof()
+//   - S8() only works on literals and arrays. On a pointer, lengthof()
 //     gives the pointer's size, not the string's. Use str8_cstr() instead.
 //   - array_push() evaluates its `arr` argument more than once.
 //   - Maps and Str8 views don't copy their data: whatever they point at
@@ -249,7 +249,7 @@ struct Str8 {
     isize len;
 };
 
-#define Str8(s)      ((Str8){(u8 *)(s), lengthof(s)})
+#define S8(s)      ((Str8){(u8 *)(s), lengthof(s)})
 #define STR8_FMT     "%.*s"
 #define str8_varg(s) (int)(s).len, (char *)(s).buf
 
