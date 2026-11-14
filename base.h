@@ -11,21 +11,27 @@
 // QUICK START
 // ============================================================================
 //
-//     #include "base.h"
+//    #include "base.h"
 //
-//     int main(void) {
-//         Arena arena   = arena_make(MB(64));
-//         Arena scratch = arena_sub(&arena, MB(1));
+//    typedef Array(Str8) Str8Array;
 //
-//         Str8 name  = Str8("world");
-//         Str8 hello = str8_fmt(&arena, "hello, " STR8_FMT, str8_varg(name));
-//         printf(STR8_FMT "\n", str8_varg(hello));
-//     }
+//    internal Str8Array split(Arena *a, Str8 s, u8 sep) {
+//        Str8Array parts = {0};
+//        for (Str8Cut c = {.tail = s}; c.tail.len;) {
+//            c = str8_cut(c.tail, sep);
+//            *array_push(a, &parts) = str8_trim(c.head);
+//        }
+//        return parts;
+//    }
 //
-// There is no implementation #define: every function is `internal` (static),
-// so just include the header. Works in unity builds and multi-file projects.
-// Compile as C11 or later, and with -Wno-unused-function, since most
-// programs use only part of the library.
+//    int main(void) {
+//        Arena arena = arena_make(MB(64));
+//
+//        Str8Array fruits = split(&arena, Str8("apple, banana ,cherry"), ',');
+//        for (isize i = 0; i < fruits.len; i++) {
+//            printf("%.*s\n", str8_varg(fruits.data[i]));
+//        }
+//    }
 //
 // ============================================================================
 // CONVENTIONS
@@ -34,7 +40,6 @@
 //   Types              PascalCase              Arena, Str8
 //   Functions          module_snake_case       arena_alloc, str8_cut
 //   Function macros    lowercase               new, array_push
-//   Surprising macros  UPPER_CASE              ASSERT
 //   Sizes and indices  signed (isize). `sizeof` and `alignof` are redefined
 //                      to return isize; use them as normal.
 //
@@ -197,6 +202,7 @@ internal void arena_oom(void) {
 }
 
 internal void *arena_alloc(Arena *arena, isize size, isize align, isize count, b32 zero) {
+    ASSERT(size > 0 && count >= 0);
     isize pad = (isize)(-(uptr)arena->beg & (uptr)(align - 1));
     isize available = arena->end - arena->beg - pad;
     if (available < 0 || count > available / size) {
@@ -356,7 +362,7 @@ internal void array_grow_(void *arr, isize item_size, Arena *arena) {
     mem_copy(&a, arr, sizeof(a));
 
     isize align = alignof(max_align_t);
-    if (!a.data) {
+    if (!a.cap) {
         a.cap = 8;
         a.data = (u8 *)arena_alloc(arena, item_size, align, a.cap, 1);
     } else if (arena->beg == a.data + item_size * a.cap) {

@@ -380,6 +380,25 @@ internal void test_array_slice_push_copies(Arena scratch) {
     CHECK(part.len == 4 && part.data[0] == 2 && part.data[3] == 99);
 }
 
+internal void test_array_empty_slice_push(Arena scratch) {
+    I32Array xs = {0};
+    for (i32 i = 0; i < 4; i++) *array_push(&scratch, &xs) = i;
+
+    I32Array empty = xs;
+    empty.data += 2;
+    empty.len = empty.cap = 0;
+
+    new(&scratch, u8);
+    for (i32 i = 0; i < 3; i++) *array_push(&scratch, &empty) = 100 + i;
+
+    u8 *later = new(&scratch, u8, 64, 0);
+    mem_set(later, 0xAA, 64);
+
+    CHECK(empty.cap >= empty.len);
+    CHECK(empty.data[0] == 100 && empty.data[1] == 101 && empty.data[2] == 102);
+    CHECK(xs.data[2] == 2 && xs.data[3] == 3);
+}
+
 typedef struct TestMap TestMap;
 struct TestMap {
     TestMap *child[4];
@@ -468,6 +487,7 @@ global Test tests[] = {
     TEST(test_array_interleaved),
     TEST(test_array_struct_alignment),
     TEST(test_array_slice_push_copies),
+    TEST(test_array_empty_slice_push),
     TEST(test_map_basics),
     TEST(test_map_many),
 };
