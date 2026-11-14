@@ -74,7 +74,7 @@
 //   A pointer and a length. Not null-terminated, and does not own its memory:
 //   slicing never copies. Null-terminate only at libc/OS boundaries.
 //
-//   S8("literal")          from a string literal (literals only!)
+//   S8("literal")            from a string literal (literals only!)
 //   str8_cstr(cstr)          from a null-terminated C string
 //   str8_eq(a, b)            byte-wise equality
 //   str8_slice(s, beg, end)  bytes [beg, end) as a view into s
@@ -249,7 +249,7 @@ struct Str8 {
     isize len;
 };
 
-#define S8(s)      ((Str8){(u8 *)(s), lengthof(s)})
+#define S8(s)        ((Str8){(u8 *)(s), lengthof(s)})
 #define STR8_FMT     "%.*s"
 #define str8_varg(s) (int)(s).len, (char *)(s).buf
 
