@@ -1,0 +1,23 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    name: ${{ matrix.os }} / ${{ matrix.cc }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false          # one failing compiler doesn't cancel the others
+      matrix:
+        include:
+          - { os: ubuntu-latest, cc: gcc }
+          - { os: ubuntu-latest, cc: clang }
+          - { os: macos-latest,  cc: clang }
+    steps:
+      - uses: actions/checkout@v6
+      - name: Test (debug, sanitizers)
+        run: make test CC=${{ matrix.cc }}
+      - name: Build example (release)
+        run: make release CC=${{ matrix.cc }}
