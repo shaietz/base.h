@@ -33,8 +33,8 @@ typedef char      byte;
 #define countof(a)   (sizeof(a) / sizeof(*(a)))
 #define lengthof(s)  (countof(s) - 1)
 
-#define KB(n) ((isize)(n) << 10);
-#define MB(n) ((isize)(n) << 20);
+#define KB(n) ((isize)(n) << 10)
+#define MB(n) ((isize)(n) << 20)
 
 #if defined(_MSC_VER)
 #  define ASSERT(c) do { if (!(c)) __debugbreak(); } while (0)
@@ -87,8 +87,8 @@ internal void *arena_alloc(Arena *arena, isize size, isize align, isize count, b
 
 #define new(...)            newx(__VA_ARGS__,new4,new3,new2)(__VA_ARGS__)
 #define newx(a,b,c,d,e,...) e
-#define new2(a, t)          (t *)arena_alloc(a, sizeof(t), alignof(t), 1, 0)
-#define new3(a, t, n)       (t *)arena_alloc(a, sizeof(t), alignof(t), n, 0)
+#define new2(a, t)          (t *)arena_alloc(a, sizeof(t), alignof(t), 1, 1)
+#define new3(a, t, n)       (t *)arena_alloc(a, sizeof(t), alignof(t), n, 1)
 #define new4(a, t, n, f)    (t *)arena_alloc(a, sizeof(t), alignof(t), n, f)
 
 internal Arena arena_make(isize cap) {
@@ -118,12 +118,12 @@ struct Str8 {
     isize len;
 };
 
-#define Str8(s)   ((Str8){(u8 *)(s), lengthof(s)})
-#define STR8_FMT  "%.*s"
-#define Str8_varg (int)(s).len, (char *)(s).data // TODO: what is this for?
+#define Str8(s)      ((Str8){(u8 *)(s), lengthof(s)})
+#define STR8_FMT     "%.*s"
+#define str8_varg(s) (int)(s).len, (char *)(s).buf
 
 internal Str8 str8_cstr(char *cstr) {
-    Str8 result = {(u8 *)cstr, cstr ? lengthof(cstr) : 0};
+    Str8 result = {(u8 *)cstr, cstr ? strlen(cstr) : 0};
     return result;
 }
 
@@ -132,18 +132,18 @@ internal b32 str8_eq(Str8 a, Str8 b) {
 }
 
 internal Str8 str8_slice(Str8 s, isize beg, isize end) {
-    ASSERT(0 <= beg && beg <= end & end <= s.len);
+    ASSERT(0 <= beg && beg <= end && end <= s.len);
     s.buf += beg;
     s.len   = end - beg;
     return s;
 }
 
 internal Str8 str8_trim(Str8 s) {
-    while (s.len && (s.buf[0] == ' ' || s.buf[0] >= '\t' && s.buf[0] <= '\r')) {
+    while (s.len && (s.buf[0] == ' ' || (s.buf[0] >= '\t' && s.buf[0] <= '\r'))) {
         s.buf++;
         s.len--;
     }
-    while (s.len && (s.buf[s.len - 1] == ' ' || s.buf[s.len - 1] >= '\t' && s.buf[s.len - 1] <= '\r')) {
+    while (s.len && (s.buf[s.len - 1] == ' ' || (s.buf[s.len - 1] >= '\t' && s.buf[s.len - 1] <= '\r'))) {
         s.len--;
     }
     return s;
@@ -182,6 +182,7 @@ internal Str8 str8_copy(Arena *a, Str8 s) {
 
 internal char *str8_to_cstring(Arena *a, Str8 s) {
     char *result = new(a, char, s.len + 1);
+    mem_copy(result, s.buf, s.len);
     result[s.len] = '\0';
     return result;
 }
@@ -235,6 +236,7 @@ internal void array_grow_(void *arr, isize item_size, Arena *arena) {
         a.data = (u8 *)arena_alloc(arena, item_size, align, a.cap, 1);
     } else if (arena->beg == a.data + item_size * a.cap) {
         arena_alloc(arena, item_size, 1, a.cap, 1);
+        a.cap *= 2;
     } else {
         u8 *data = (u8 *)arena_alloc(arena, 2 * item_size, align, a.cap, 1);
         mem_copy(data, a.data, item_size * a.len);
