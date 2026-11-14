@@ -1,3 +1,129 @@
+// base.h - v0.1 - a minimal single-file base layer for C11
+// https://github.com/shaietz/base.h
+//
+// Licensed under MIT or public domain, at your choice; see the end of this file.
+//
+// A small foundation for "handmade"-style C: arena allocation, length-based
+// strings, growable arrays, and a pattern for hash maps. Heavily inspired by
+// Chris Wellons (nullprogram.com) and Ryan Fleury's base layer.
+//
+// ============================================================================
+// QUICK START
+// ============================================================================
+//
+//     #include "base.h"
+//
+//     int main(void) {
+//         Arena arena   = arena_make(MB(64));
+//         Arena scratch = arena_sub(&arena, MB(1));
+//
+//         Str8 name  = Str8("world");
+//         Str8 hello = str8_fmt(&arena, "hello, " STR8_FMT, str8_varg(name));
+//         printf(STR8_FMT "\n", str8_varg(hello));
+//     }
+//
+// There is no implementation #define: every function is `internal` (static),
+// so just include the header. Works in unity builds and multi-file projects.
+// Compile as C11 or later, and with -Wno-unused-function, since most
+// programs use only part of the library.
+//
+// ============================================================================
+// CONVENTIONS
+// ============================================================================
+//
+//   Types              PascalCase              Arena, Str8
+//   Functions          module_snake_case       arena_alloc, str8_cut
+//   Function macros    lowercase               new, array_push
+//   Surprising macros  UPPER_CASE              ASSERT
+//   Sizes and indices  signed (isize). `sizeof` and `alignof` are redefined
+//                      to return isize; use them as normal.
+//
+//   Zero is initialization: {0} is always a valid, empty value. An empty Str8,
+//   an empty Array and an empty map are all just zero.
+//
+//   Arena parameters:
+//     Arena *a       results the caller keeps are allocated here
+//     Arena scratch  passed BY VALUE, anything allocated in it is discarded
+//                    automatically when the function returns
+//
+//   Out of memory is not recoverable: every allocation either succeeds or
+//   prints "out of memory" and aborts. No allocation returns null.
+//
+// ============================================================================
+// DOCUMENTATION
+// ============================================================================
+//
+// ARENAS
+//   arena_make(cap)          new top-level arena of cap bytes from malloc.
+//                            Meant to be made once and never freed.
+//   arena_sub(&parent, cap)  carve a child arena out of a parent
+//   new(&a, T)               allocate one zeroed T
+//   new(&a, T, n)            allocate n zeroed Ts
+//   new(&a, T, n, 0)         allocate n Ts without zeroing
+//   arena_alloc(...)         the function behind new(); rarely called directly
+//
+//   Save and restore by copying the struct:
+//       Arena saved = a;  ...temporary work...  a = saved;
+//
+// STRINGS (Str8)
+//   A pointer and a length. Not null-terminated, and does not own its memory:
+//   slicing never copies. Null-terminate only at libc/OS boundaries.
+//
+//   Str8("literal")          from a string literal (literals only!)
+//   str8_cstr(cstr)          from a null-terminated C string
+//   str8_eq(a, b)            byte-wise equality
+//   str8_slice(s, beg, end)  bytes [beg, end) as a view into s
+//   str8_trim(s)             strip leading and trailing whitespace
+//   str8_cut(s, c)           split at the first c: {head, tail, ok}
+//   str8_hash(s)             64-bit hash, for hash maps
+//   str8_copy(&a, s)         copy into the arena
+//   str8_to_cstring(&a, s)   null-terminated copy, for libc and the OS
+//   str8_concat(&a, x, y)    x followed by y. If x is the arena's most recent
+//                            allocation, y is appended in place (cheap loops)
+//   str8_fmt(&a, fmt, ...)   printf into the arena
+//
+//   Printing: printf(STR8_FMT "\n", str8_varg(s));
+//
+//   Splitting idiom:
+//       for (Str8Cut line = {.tail = text}; line.tail.len;) {
+//           line = str8_cut(line.tail, '\n');
+//           ... use line.head ...
+//       }
+//
+// DYNAMIC ARRAYS
+//   typedef Array(i32) I32Array;     declare one type per element type
+//   I32Array xs = {0};               empty array
+//   *array_push(&a, &xs) = 42;       append; returns pointer to the new
+//                                    (zeroed) element
+//
+//   Grows inside the arena: in place when the array is the most recent
+//   allocation, otherwise copied to a block twice the size. A slice of an
+//   array is an Array with cap == len; pushing to it copies instead of
+//   overwriting the original.
+//
+// HASH MAPS
+//   A pattern, not an API: write one 15-line map per key/value type. See the
+//   template in the HASH MAPS section below.
+//
+// ============================================================================
+// NOTES AND GOTCHAS
+// ============================================================================
+//
+//   - Str8() only works on literals and arrays. On a pointer, lengthof()
+//     gives the pointer's size, not the string's. Use str8_cstr() instead.
+//   - array_push() evaluates its `arr` argument more than once.
+//   - Maps and Str8 views don't copy their data: whatever they point at
+//     must outlive them.
+//   - Hash maps have no delete; they live and die with their arena.
+//   - str8_hash() is not seeded. Don't use it on keys an attacker controls.
+//
+// ============================================================================
+// VERSION HISTORY
+// ============================================================================
+//
+//   0.1  (2026-11-14)  first public release
+//
+
 #ifndef BASE_H
 #define BASE_H
 
@@ -26,7 +152,6 @@ typedef double    f64;
 typedef ptrdiff_t isize;
 typedef size_t    usize;
 typedef uintptr_t uptr;
-typedef char      byte;
 
 #define sizeof(x)    (isize)sizeof(x)
 #define alignof(x)   (isize)_Alignof(x)
@@ -103,7 +228,7 @@ internal Arena arena_make(isize cap) {
 
 internal Arena arena_sub(Arena *parent, isize cap) {
     Arena arena = {0};
-    arena.beg = new(parent, u8, cap, 1);
+    arena.beg = new(parent, u8, cap, 0);
     arena.end = arena.beg + cap;
     return arena;
 }
@@ -283,3 +408,45 @@ internal void array_grow_(void *arr, isize item_size, Arena *arena) {
 //
 
 #endif // BASE_H
+
+/*
+------------------------------------------------------------------------------
+This software is available under 2 licenses -- choose whichever you prefer.
+------------------------------------------------------------------------------
+ALTERNATIVE A - MIT License
+Copyright (c) 2026 Shai Etzion
+Permission is hereby granted, free of charge, to any person obtaining a copy of
+this software and associated documentation files (the "Software"), to deal in
+the Software without restriction, including without limitation the rights to
+use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies
+of the Software, and to permit persons to whom the Software is furnished to do
+so, subject to the following conditions:
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+------------------------------------------------------------------------------
+ALTERNATIVE B - Public Domain (www.unlicense.org)
+This is free and unencumbered software released into the public domain.
+Anyone is free to copy, modify, publish, use, compile, sell, or distribute this
+software, either in source code form or as a compiled binary, for any purpose,
+commercial or non-commercial, and by any means.
+In jurisdictions that recognize copyright laws, the author or authors of this
+software dedicate any and all copyright interest in the software to the public
+domain. We make this dedication for the benefit of the public at large and to
+the detriment of our heirs and successors. We intend this dedication to be an
+overt act of relinquishment in perpetuity of all present and future rights to
+this software under copyright law.
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
+ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+------------------------------------------------------------------------------
+*/
